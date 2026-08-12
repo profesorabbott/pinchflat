@@ -83,7 +83,7 @@ RUN echo "Building for ${TARGETPLATFORM:?}" && \
   rm /tmp/ci-base.requirements.txt && \
   # Set up ZSH tools
   chsh -s $(which zsh) && \
-  sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+  sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/refs/heads/master/tools/install.sh)"
 
 # Set the locale
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
