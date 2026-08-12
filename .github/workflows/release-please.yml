@@ -19,7 +19,7 @@ jobs:
     # the workspace into the container, so no compose, no detached keepalive, and
     # no `exec -T` TTY workaround are needed.
     container:
-      image: ghcr.io/communitymaintained/pinchflat-ci-base:sha-36d2504
+      image: ghcr.io/profesorabbott/pinchflat-ci-base:sha-4978640
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -112,7 +112,7 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
           images: |
-            docker.io/communitymaintained/pinchflat
+            docker.io/profesorabbott/pinchflat
             ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=${{ steps.version.outputs.value }}
