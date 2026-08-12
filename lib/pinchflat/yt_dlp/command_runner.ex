@@ -26,6 +26,9 @@ defmodule Pinchflat.YtDlp.CommandRunner do
       attach a cookie file if the user hasn't set one up.
     - :skip_sleep_interval - if true, will not add the sleep interval options to the command.
       Usually only used for commands that would be UI-blocking
+    - :expected_exit_codes - additional non-zero exit codes the caller treats as a
+      normal outcome and handles itself. These (plus 101, which this runner already
+      treats as success) get logged at debug instead of error.
 
   Returns {:ok, binary()} | {:error, output, status}.
   """
@@ -39,8 +42,11 @@ defmodule Pinchflat.YtDlp.CommandRunner do
     # These must stay in exactly this order, hence why I'm giving it its own variable.
     all_opts = command_opts ++ print_to_file_opts ++ user_configured_opts ++ global_options()
     formatted_command_opts = [url] ++ CliUtils.parse_options(all_opts)
+    expected_exit_codes = [101] ++ Keyword.get(addl_opts, :expected_exit_codes, [])
 
-    case CliUtils.wrap_cmd(backend_executable(), formatted_command_opts, stderr_to_stdout: true) do
+    wrap_cmd_opts = [expected_exit_codes: expected_exit_codes]
+
+    case CliUtils.wrap_cmd(backend_executable(), formatted_command_opts, [stderr_to_stdout: true], wrap_cmd_opts) do
       # yt-dlp exit codes:
       #   0 = Everything is successful
       #   100 = yt-dlp must restart for update to complete
@@ -77,15 +83,26 @@ defmodule Pinchflat.YtDlp.CommandRunner do
   end
 
   @doc """
-  Updates yt-dlp to the latest version
+  Updates yt-dlp to the given target.
+
+  The target can be:
+    - "stable" - updates to the latest stable release
+    - "nightly" - updates to the latest nightly build
+    - "nightly@2025.12.08.123456" - pins to that exact nightly build
+    - a specific version like "2025.12.08" - pins to that exact stable release
 
   Returns {:ok, binary()} | {:error, binary()}
   """
   @impl YtDlpCommandRunner
-  def update do
+  def update(target) do
     command = backend_executable()
 
-    case CliUtils.wrap_cmd(command, ["--update"]) do
+    case CliUtils.wrap_cmd(command, build_update_args(target)) do
+      # A no-URL `--update`/`--update-to` exits with yt-dlp's `_download_retcode`,
+      # which stays 0 for a successful update *and* for "already up to date". yt-dlp
+      # only ever sets that retcode to 100 from its update error handler (bad/missing
+      # tag, network failure, unwritable binary), so 100 is a failure - not, as the
+      # name "restart to finish" might suggest, a success. Treat non-zero as an error.
       {output, 0} ->
         {:ok, String.trim(output)}
 
@@ -93,6 +110,14 @@ defmodule Pinchflat.YtDlp.CommandRunner do
         {:error, output}
     end
   end
+
+  defp build_update_args("stable"), do: ["--update"]
+  defp build_update_args("nightly"), do: ["--update-to", "nightly"]
+  # `nightly` is yt-dlp's channel alias for the yt-dlp/yt-dlp-nightly-builds repo;
+  # `<channel>@<tag>` pins to an exact build. Naming the repo directly (e.g.
+  # `yt-dlp/yt-dlp_nightly@<tag>`) fails because that repo doesn't exist.
+  defp build_update_args("nightly@" <> version), do: ["--update-to", "nightly@#{version}"]
+  defp build_update_args(version), do: ["--update-to", "yt-dlp/yt-dlp@#{version}"]
 
   defp generate_output_filepath(addl_opts) do
     case Keyword.get(addl_opts, :output_filepath) do

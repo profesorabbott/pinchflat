@@ -23,7 +23,13 @@
         type="select"
         x-model="selection"
         inputclass="w-full"
-        help="You can further customize the settings after selecting a preset. This is just a starting point"
+        help={
+          "You can further customize the settings after selecting a preset. This is just a starting point. " <>
+            "Using the Media Center preset? See the " <>
+            "<a href=\"https://github.com/CommunityMaintained/tubeless/wiki/Media-Center-integration\" target=\"_blank\" " <>
+            "class=\"underline decoration-bodydark decoration-1 hover:decoration-white\">Plex and Jellyfin setup guide</a>"
+        }
+        html_help={true}
       >
         <.button
           class="h-13 w-2/5 lg:w-1/5 ml-2 md:ml-4"
@@ -63,8 +69,10 @@
       />
     </section>
 
-    <section x-data={"{ 
-        presets: { 
+    <section x-data={"{
+        tpl: #{Jason.encode!(f[:output_path_template].value || "")},
+        get tplWarnings() { return window.validateOutputTemplate(this.tpl) },
+        presets: {
           default: '#{default_output_template()}',
           media_center: '#{media_center_output_template()}',
           audio: '#{audio_output_template()}',
@@ -77,8 +85,18 @@
         inputclass="font-mono"
         label="Output path template"
         help="Must end with .{{ ext }}. See below for more details. The default is good for most cases (required)"
-        x-init="$watch('selectedPreset', p => p && ($el.value = presets[p]))"
+        x-model="tpl"
+        x-init="$watch('selectedPreset', p => p && (tpl = presets[p]))"
       />
+      <ul
+        x-cloak
+        x-show="tplWarnings.length"
+        class="mt-1 text-sm text-amber-500 list-disc list-inside"
+      >
+        <template x-for="warning in tplWarnings" x-bind:key="warning">
+          <li x-text="warning"></li>
+        </template>
+      </ul>
     </section>
 
     <h3 class="mt-10 text-2xl text-black dark:text-white">
@@ -168,7 +186,7 @@
         field={f[:download_metadata]}
         type="toggle"
         label="Download Metadata"
-        help="Downloads metadata file alongside media file"
+        help="Downloads a .info.json metadata file alongside media file"
         x-init="$watch('selectedPreset', p => p && (enabled = presets[p]))"
       />
     </section>
@@ -251,21 +269,28 @@
     <p class="text-sm mt-2 max-w-prose">
       Everything in this section is experimental - please open a GitHub issue if you see something odd.
       <strong>
-        These options only work if this Media Profile's output template is set to split media into seasons.
+        These options only work if this Media Profile's output template is set to split media into seasons
+        or marks a folder with <.inline_code>{double_brace("series_root")}</.inline_code>.
       </strong>
-      Try the "Media Center" preset if you're not sure.
+      Try the "Media Center" preset if you're not sure. See the template docs below for more on <.inline_code>{double_brace("series_root")}</.inline_code>.
+      For configuring Plex or Jellyfin to consume these files, see the <.subtle_link
+        href="https://github.com/CommunityMaintained/tubeless/wiki/Media-Center-integration"
+        target="_blank"
+      >
+        Media Center integration guide</.subtle_link>.
     </p>
 
     <section
-      phx-click={show_modal("upgrade-modal")}
+      data-show-upgrade-modal={show_modal("upgrade-modal")}
+      x-on:click="(!proEnabled && !onboarding) && window.liveSocket.execJS($el, $el.dataset.showUpgradeModal)"
       x-data="{ presets: { default: false, media_center: true, audio: false, archiving: false } }"
     >
       <.input
         field={f[:download_nfo]}
         type="toggle"
-        label="Download NFO data"
+        label="Create NFO data"
         label_suffix="(pro)"
-        help="Downloads NFO data alongside media file for use with Jellyfin, Kodi, etc."
+        help="Creates a .nfo file alongside media file for use with Jellyfin, Kodi, etc."
         x-init="$watch('selectedPreset', p => p && (enabled = presets[p]))"
       />
     </section>

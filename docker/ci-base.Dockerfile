@@ -17,17 +17,22 @@
 # Drift caveat: ci-base ships ffmpeg into selfhosted's runner, so bumping the ffmpeg
 # pin here changes the ffmpeg binary users get. Consumers should pin to :sha-<...>, not
 # :latest, so any base bump goes through a PR.
-
-ARG ELIXIR_VERSION=1.18.4
-ARG OTP_VERSION=27.2.4
-ARG DEBIAN_VERSION=trixie-20260610-slim
+# These three combine into the hexpm/elixir tag (see DEV_IMAGE below). hexpm only
+# publishes specific combos, so Renovate tracks each against the real hexpm/elixir
+# tag list (customManagers in renovate.json) and groups the bumps into one PR — it
+# never proposes a value from a combo that isn't published. Debian stays on trixie-slim.
+ARG ELIXIR_VERSION=1.20.2
+ARG OTP_VERSION=28.5.0.4
+ARG DEBIAN_VERSION=trixie-20260713-slim
 # renovate: datasource=github-releases depName=denoland/deno
-ARG DENO_VERSION=v2.8.3
+ARG DENO_VERSION=v2.9.0
+# renovate: datasource=node-version depName=node
+ARG NODE_MAJOR=24
 # NOT renovate-tracked: ffmpeg is pinned for issue #347 (illegal instruction on some CPUs).
 # Newer builds must be smoke-tested manually before bumping. FFMPEG_BUILD is paired with
 # FFMPEG_RELEASE — both come from the same yt-dlp/FFmpeg-Builds release page.
-ARG FFMPEG_RELEASE=autobuild-2024-07-30-14-10
-ARG FFMPEG_BUILD=N-116468-g0e09f6d690
+ARG FFMPEG_RELEASE=autobuild-2026-07-30-16-10
+ARG FFMPEG_BUILD=N-125858-g86940d45af
 
 ARG DEV_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 
@@ -37,6 +42,7 @@ FROM ${DEV_IMAGE}
 # are only in scope for the FROM line itself.
 ARG TARGETPLATFORM
 ARG DENO_VERSION
+ARG NODE_MAJOR
 ARG FFMPEG_RELEASE
 ARG FFMPEG_BUILD
 
@@ -58,7 +64,7 @@ RUN echo "Building for ${TARGETPLATFORM:?}" && \
     curl -L ${FFMPEG_DOWNLOAD} --output /tmp/ffmpeg.tar.xz && \
     tar -xf /tmp/ffmpeg.tar.xz --strip-components=2 --no-anchored -C /usr/bin/ ffmpeg ffprobe && \
 # Install nodejs, Yarn, Deno, yt-dlp, and Apprise
-  curl -sL https://deb.nodesource.com/setup_20.x -o nodesource_setup.sh && \
+  curl -sL https://deb.nodesource.com/setup_${NODE_MAJOR}.x -o nodesource_setup.sh && \
   bash nodesource_setup.sh && \
   apt-get install -y nodejs && \
   apt-get clean && \

@@ -32,6 +32,7 @@ defmodule Pinchflat.Media.MediaQuery do
 
   def downloaded, do: dynamic([mi], not is_nil(mi.media_filepath))
   def download_prevented, do: dynamic([mi], mi.prevent_download == true)
+  def unavailable, do: dynamic([mi], not is_nil(mi.unavailable_at))
   def culling_prevented, do: dynamic([mi], mi.prevent_culling == true)
   def redownloaded, do: dynamic([mi], not is_nil(mi.media_redownloaded_at))
   def upload_date_matches(other_date), do: dynamic([mi], fragment("date(?) = date(?)", mi.uploaded_at, ^other_date))
@@ -212,7 +213,6 @@ defmodule Pinchflat.Media.MediaQuery do
   #   - Wraps any word in quotes (must happen after the double quote replacement)
   #
   # This allows for works with apostrophes and quotes to be searched for correctly
-  defp clean_search_term(nil), do: ""
   defp clean_search_term(""), do: ""
 
   defp clean_search_term(term) do
