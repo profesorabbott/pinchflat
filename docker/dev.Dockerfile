@@ -1,4 +1,4 @@
-ARG BASE_IMAGE="ghcr.io/communitymaintained/pinchflat-ci-base:latest"
+ARG BASE_IMAGE="ghcr.io/profesorabbott/pinchflat-ci-base:latest"
 
 FROM ${BASE_IMAGE}
 
