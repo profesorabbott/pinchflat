@@ -61,7 +61,7 @@ RUN echo "Building for ${TARGETPLATFORM:?}" && \
     "linux/amd64")   echo "${FFMPEG_BASE_URL}-linux64-gpl.tar.xz"   ;; \
     "linux/arm64")   echo "${FFMPEG_BASE_URL}-linuxarm64-gpl.tar.xz" ;; \
     *)               echo ""        ;; esac) && \
-    curl -L ${FFMPEG_DOWNLOAD} --output /tmp/ffmpeg.tar.xz && \
+    curl -L ${FFMPEG_DOWNLOAD} --output /tmp/ffmpeg.tar.xz --fail-with-body && \
     tar -xf /tmp/ffmpeg.tar.xz --strip-components=2 --no-anchored -C /usr/bin/ ffmpeg ffprobe && \
 # Install nodejs, Yarn, Deno, yt-dlp, and Apprise
   curl -sL https://deb.nodesource.com/setup_${NODE_MAJOR}.x -o nodesource_setup.sh && \
@@ -89,7 +89,7 @@ RUN echo "Building for ${TARGETPLATFORM:?}" && \
   rm /tmp/ci-base.requirements.txt && \
   # Set up ZSH tools
   chsh -s $(which zsh) && \
-  sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+  sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/refs/heads/master/tools/install.sh)"
 
 # Set the locale
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
