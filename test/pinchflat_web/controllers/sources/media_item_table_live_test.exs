@@ -69,12 +69,131 @@ defmodule PinchflatWeb.Sources.MediaItemTableLiveTest do
       refute html =~ pending_media_item.title
     end
 
-    test "shows 'Manually Ignored' column when other", %{conn: conn, source: source} do
+    test "shows 'Ignored' status for manually prevented media when other", %{conn: conn, source: source} do
       _media_item = media_item_fixture(source_id: source.id, prevent_download: true, media_filepath: nil)
 
       {:ok, _view, html} = live_isolated(conn, MediaItemTableLive, session: create_session(source, "other"))
 
-      assert html =~ "Manually Ignored?"
+      assert html =~ "Status"
+      assert html =~ "Ignored"
+      refute html =~ "Removed"
+    end
+
+    test "shows 'Removed' status for culled media even when prevent_download is set", %{conn: conn, source: source} do
+      _media_item =
+        media_item_fixture(
+          source_id: source.id,
+          media_filepath: nil,
+          prevent_download: true,
+          culled_at: DateTime.utc_now()
+        )
+
+      {:ok, _view, html} = live_isolated(conn, MediaItemTableLive, session: create_session(source, "other"))
+
+      assert html =~ "Removed"
+      refute html =~ "Ignored"
+    end
+
+    test "shows 'Unavailable' status for unavailable media when other", %{conn: conn, source: source} do
+      _media_item =
+        media_item_fixture(
+          source_id: source.id,
+          media_filepath: nil,
+          prevent_download: true,
+          unavailable_at: DateTime.utc_now(),
+          unavailable_reason: "members-only content"
+        )
+
+      {:ok, _view, html} = live_isolated(conn, MediaItemTableLive, session: create_session(source, "other"))
+
+      assert html =~ "Unavailable"
+      refute html =~ "Ignored"
+      refute html =~ "Removed"
+    end
+
+    test "shows 'Filtered Out' status for media excluded by profile rules when other", %{conn: conn} do
+      media_profile = media_profile_fixture(shorts_behaviour: :exclude)
+      source = source_fixture(media_profile_id: media_profile.id)
+      _media_item = media_item_fixture(source_id: source.id, media_filepath: nil, short_form_content: true)
+
+      {:ok, _view, html} = live_isolated(conn, MediaItemTableLive, session: create_session(source, "other"))
+
+      assert html =~ "Filtered Out"
+    end
+  end
+
+  describe "searching" do
+    test "filters records to those matching the search term", %{conn: conn, source: source} do
+      matching = media_item_fixture(source_id: source.id, media_filepath: nil, title: "Apple Pie Recipe")
+      other = media_item_fixture(source_id: source.id, media_filepath: nil, title: "Banana Bread Recipe")
+
+      {:ok, view, _html} = live_isolated(conn, MediaItemTableLive, session: create_session(source))
+
+      html = render_change(view, "search_term", %{"q" => "apple"})
+
+      assert html =~ matching.title
+      refute html =~ other.title
+    end
+
+    test "shows the filtered count alongside the total", %{conn: conn, source: source} do
+      media_item_fixture(source_id: source.id, media_filepath: nil, title: "Apple Pie Recipe")
+      media_item_fixture(source_id: source.id, media_filepath: nil, title: "Banana Bread Recipe")
+
+      {:ok, view, _html} = live_isolated(conn, MediaItemTableLive, session: create_session(source))
+
+      html = render_change(view, "search_term", %{"q" => "apple"})
+
+      # The numbers are wrapped in localization markup, so match loosely
+      assert html =~ ~r/Showing.*1.*of.*1/s
+    end
+
+    test "an empty search term clears the filter", %{conn: conn, source: source} do
+      media_item_fixture(source_id: source.id, media_filepath: nil, title: "Apple Pie Recipe")
+      other = media_item_fixture(source_id: source.id, media_filepath: nil, title: "Banana Bread Recipe")
+
+      {:ok, view, _html} = live_isolated(conn, MediaItemTableLive, session: create_session(source))
+
+      render_change(view, "search_term", %{"q" => "apple"})
+      html = render_change(view, "search_term", %{"q" => ""})
+
+      assert html =~ other.title
+    end
+  end
+
+  describe "pagination" do
+    test "paginates past the per-page limit", %{conn: conn, source: source} do
+      # The table shows 10 records per page, newest upload first
+      Enum.each(1..11, fn n ->
+        media_item_fixture(
+          source_id: source.id,
+          media_filepath: nil,
+          title: "Video ##{String.pad_leading(to_string(n), 2, "0")}",
+          uploaded_at: DateTime.add(DateTime.utc_now(), n, :minute)
+        )
+      end)
+
+      {:ok, view, html} = live_isolated(conn, MediaItemTableLive, session: create_session(source))
+
+      assert html =~ "Video #11"
+      refute html =~ "Video #01"
+
+      html = render_click(view, "page_change", %{"direction" => "inc"})
+
+      assert html =~ "Video #01"
+      refute html =~ "Video #11"
+    end
+  end
+
+  describe "reloading" do
+    test "reload_page broadcasts a reload that refetches every table", %{conn: conn, source: source} do
+      {:ok, view, html} = live_isolated(conn, MediaItemTableLive, session: create_session(source))
+      assert html =~ "Nothing Here!"
+
+      media_item = media_item_fixture(source_id: source.id, media_filepath: nil)
+
+      render_click(view, "reload_page")
+
+      assert render(view) =~ media_item.title
     end
   end
 

@@ -21,17 +21,17 @@ defmodule PinchflatWeb.Settings.SettingHTML do
   def youtube_api_help do
     url = "https://github.com/kieraneglin/pinchflat/wiki/Generating-a-YouTube-API-key"
 
-    ~s(API key for YouTube Data API v3. Greatly improves the accuracy of Fast Indexing. See <a href="#{url}" class="#{help_link_classes()}" target="_blank">here</a> for details on generating an API key)
+    ~s(API key for YouTube Data API v3. Greatly improves the accuracy of Fast Indexing. You can add multiple keys separated by commas &mdash; they'll be used in round-robin fashion to spread quota usage. See <a href="#{url}" class="#{help_link_classes()}" target="_blank">here</a> for details on generating an API key)
   end
 
-  def diagnostic_info_string do
-    """
-    - App Version: #{Application.spec(:pinchflat)[:vsn]}
-    - yt-dlp Version: #{Settings.get!(:yt_dlp_version)}
-    - Apprise Version: #{Settings.get!(:apprise_version)}
-    - System Architecture: #{to_string(:erlang.system_info(:system_architecture))}
-    - Timezone: #{Application.get_env(:pinchflat, :timezone)}
-    """
+  def yt_dlp_update_policy_help do
+    ~s(Controls how the bundled yt-dlp is kept up to date. Use "Nightly until stable" to temporarily ride nightly when YouTube breaks something, then auto-return to stable once the fix ships)
+  end
+
+  def yt_dlp_pinned_version_help do
+    url = "https://github.com/yt-dlp/yt-dlp/releases"
+
+    ~s(The exact yt-dlp version to install and hold, e.g. "2025.12.08". See the <a href="#{url}" class="#{help_link_classes()}" target="_blank">GH releases page</a> for valid versions, or use the check button to validate your entry)
   end
 
   defp help_link_classes do

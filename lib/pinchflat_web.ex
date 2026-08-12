@@ -17,7 +17,7 @@ defmodule PinchflatWeb do
   those modules here.
   """
 
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
+  def static_paths, do: ~w(assets fonts images favicon.ico apple-touch-icon.png robots.txt)
 
   def router do
     quote do
@@ -54,9 +54,7 @@ defmodule PinchflatWeb do
 
   def live_view do
     quote do
-      use Phoenix.Component, global_prefixes: ~w(x-)
-
-      use Phoenix.LiveView
+      use Phoenix.LiveView, global_prefixes: ~w(x-)
 
       alias Pinchflat.Settings
 
