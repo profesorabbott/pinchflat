@@ -88,7 +88,7 @@ defmodule Pinchflat.YtDlp.Media do
     output_template = indexing_output_template()
 
     with {:ok, output} <-
-          backend_runner().run(url, :get_media_attributes, all_command_opts, output_template, addl_opts),
+        backend_runner().run(url, :get_media_attributes, all_command_opts, output_template, addl_opts),
          {:ok, parsed_json} <- ResponseDecoder.decode(output, :get_media_attributes) do
       {:ok, response_to_struct(parsed_json)}
     end
