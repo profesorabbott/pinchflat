@@ -26,8 +26,8 @@ ARG DENO_VERSION=v2.8.3
 # NOT renovate-tracked: ffmpeg is pinned for issue #347 (illegal instruction on some CPUs).
 # Newer builds must be smoke-tested manually before bumping. FFMPEG_BUILD is paired with
 # FFMPEG_RELEASE — both come from the same yt-dlp/FFmpeg-Builds release page.
-ARG FFMPEG_RELEASE=autobuild-2026-07-29-16-16
-ARG FFMPEG_BUILD=N-125847-ga234fc1130
+ARG FFMPEG_RELEASE=autobuild-2025-03-31-14-21
+ARG FFMPEG_BUILD=N-119096-g256a38101f
 
 ARG DEV_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 
