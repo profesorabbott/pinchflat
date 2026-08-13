@@ -32,7 +32,8 @@ defmodule PinchflatWeb.Sources.MediaItemTableLive do
             <span class="absolute left-2 top-1/2 -translate-y-1/2 flex">
               <.icon name="hero-magnifying-glass" />
             </span>
-            <form phx-change="search_term" phx-submit="search_term">
+            <%!-- The id must be unique because this LiveView renders once per media-state tab --%>
+            <form id={"media-search-form-#{@media_state}"} phx-change="search_term" phx-submit="search_term">
               <input
                 type="text"
                 name="q"
@@ -63,8 +64,14 @@ defmodule PinchflatWeb.Sources.MediaItemTableLive do
             </span>
           </section>
         </:col>
-        <:col :let={media_item} :if={@media_state == "other"} label="Manually Ignored?">
-          <.icon name={if media_item.prevent_download, do: "hero-check", else: "hero-x-mark"} />
+        <:col :let={media_item} :if={@media_state == "other"} label="Status">
+          <% status = media_status(media_item) %>
+          <.tooltip tooltip={status.tooltip} position="bottom-right" tooltip_class="w-64">
+            <span class={["flex items-center gap-1.5", status.class]}>
+              <.icon name={status.icon} class="w-5 h-5 shrink-0" />
+              <span>{status.label}</span>
+            </span>
+          </.tooltip>
         </:col>
         <:col :let={media_item} label="Upload Date">
           {DateTime.to_date(media_item.uploaded_at)}
@@ -217,6 +224,43 @@ defmodule PinchflatWeb.Sources.MediaItemTableLive do
 
   # Selecting only what we need GREATLY speeds up queries on large tables
   defp select_fields do
-    [:id, :title, :uploaded_at, :prevent_download, :last_error]
+    [:id, :title, :uploaded_at, :prevent_download, :last_error, :unavailable_at, :unavailable_reason, :culled_at]
+  end
+
+  # Explains why a media item is in the "Other" tab (neither downloaded nor pending).
+  # Order matters: a retention-culled item has both `culled_at` and `prevent_download`
+  # set, so `culled_at` must be checked before `prevent_download`.
+  defp media_status(%{unavailable_at: at, unavailable_reason: reason}) when not is_nil(at) do
+    tooltip = if reason, do: "Skipped: #{reason}", else: "Skipped: members-only, private, or removed"
+    %{label: "Unavailable", icon: "hero-no-symbol", class: "text-amber-400", tooltip: tooltip}
+  end
+
+  defp media_status(%{culled_at: at, prevent_download: prevent_download}) when not is_nil(at) do
+    tooltip =
+      if prevent_download do
+        "Downloaded, then deleted after its retention period. It won't be re-downloaded"
+      else
+        "Downloaded, then deleted because it's before the source's cutoff date. It may be re-downloaded if the cutoff changes"
+      end
+
+    %{label: "Removed", icon: "hero-trash", class: "text-slate-300", tooltip: tooltip}
+  end
+
+  defp media_status(%{prevent_download: true}) do
+    %{
+      label: "Ignored",
+      icon: "hero-eye-slash",
+      class: "text-slate-300",
+      tooltip: "Manually marked to not download"
+    }
+  end
+
+  defp media_status(_media_item) do
+    %{
+      label: "Filtered Out",
+      icon: "hero-funnel",
+      class: "text-slate-300",
+      tooltip: "Excluded by this source's profile rules (duration, format, title, or cutoff date)"
+    }
   end
 end

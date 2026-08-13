@@ -37,18 +37,22 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilder do
   or media_item's media profile. Uses the source's override output path template if it exists.
 
   Accepts a %MediaItem{} or %Source{} struct. If a %Source{} struct is passed, it
-  will use a default %MediaItem{} struct with the given source.
+  will use a default %MediaItem{} struct with the given source. Optionally accepts
+  a map of template options that override the defaults (and any custom variables
+  with the same name) when rendering the template.
 
   Returns binary()
   """
-  def build_output_path_for(%Source{} = source_with_preloads) do
-    build_output_path_for(%MediaItem{source: source_with_preloads})
+  def build_output_path_for(record, additional_template_options \\ %{})
+
+  def build_output_path_for(%Source{} = source_with_preloads, additional_template_options) do
+    build_output_path_for(%MediaItem{source: source_with_preloads}, additional_template_options)
   end
 
-  def build_output_path_for(%MediaItem{} = media_item_with_preloads) do
+  def build_output_path_for(%MediaItem{} = media_item_with_preloads, additional_template_options) do
     output_path_template = Sources.output_path_template(media_item_with_preloads.source)
 
-    build_output_path(output_path_template, media_item_with_preloads)
+    build_output_path(output_path_template, media_item_with_preloads, additional_template_options)
   end
 
   @doc """
@@ -190,8 +194,8 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilder do
     ]
   end
 
-  defp build_output_path(string, media_item_with_preloads) do
-    additional_options_map = output_options_map(media_item_with_preloads)
+  defp build_output_path(string, media_item_with_preloads, additional_template_options) do
+    additional_options_map = Map.merge(output_options_map(media_item_with_preloads), additional_template_options)
     {:ok, output_path} = OutputPathBuilder.build(string, additional_options_map)
 
     Path.join(base_directory(), output_path)
@@ -213,17 +217,11 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilder do
     }
   end
 
-  # I don't love the string manipulation here, but what can ya' do.
-  # It's dependent on the output_path_template being a string ending `.{{ ext }}`
-  # (or equivalent), but that's validated by the MediaProfile schema.
+  # The thumbnail must share the media file's basename (differing only in
+  # extension) for media center apps to pick it up as the episode thumbnail -
+  # Plex in particular only matches an exactly-named sidecar image
   defp determine_thumbnail_location(media_item_with_preloads) do
-    output_path_template = Sources.output_path_template(media_item_with_preloads.source)
-
-    output_path_template
-    |> String.split(~r{\.}, include_captures: true)
-    |> List.insert_at(-3, "-thumb")
-    |> Enum.join()
-    |> build_output_path(media_item_with_preloads)
+    build_output_path_for(media_item_with_preloads)
   end
 
   defp pad_int(integer, count \\ 2, padding \\ "0") do

@@ -5,8 +5,11 @@ defmodule Pinchflat.Metadata.SourceMetadataStorageWorkerTest do
   import Pinchflat.ProfilesFixtures
 
   alias Pinchflat.Sources
+  alias Pinchflat.Settings
   alias Pinchflat.Metadata.MetadataFileHelpers
   alias Pinchflat.Metadata.SourceMetadataStorageWorker
+
+  @members_only_error "ERROR: [youtube] 6k10GWVyk4M: This video is available to this channel's members on level: VIP Member!"
 
   describe "kickoff_with_task/1" do
     test "enqueues a new worker for the source" do
@@ -42,6 +45,98 @@ defmodule Pinchflat.Metadata.SourceMetadataStorageWorkerTest do
 
     test "does not blow up if the record doesn't exist" do
       assert :ok = perform_job(SourceMetadataStorageWorker, %{id: 0})
+    end
+  end
+
+  describe "perform/1 when the metadata fetch hits unavailable media" do
+    test "completes without crashing when ignore_unavailable_media is enabled" do
+      Settings.set(ignore_unavailable_media: true)
+
+      stub(YtDlpRunnerMock, :run, fn
+        _url, :get_source_details, _opts, _ot, _addl -> {:ok, source_details_return_fixture()}
+        _url, :get_source_metadata, _opts, _ot, _addl -> {:error, @members_only_error, 1}
+      end)
+
+      source = source_fixture()
+
+      assert :ok = perform_job(SourceMetadataStorageWorker, %{id: source.id})
+    end
+
+    test "completes without crashing when the details fetch also hits unavailable media" do
+      Settings.set(ignore_unavailable_media: true)
+
+      stub(YtDlpRunnerMock, :run, fn
+        _url, :get_source_details, _opts, _ot, _addl -> {:error, @members_only_error, 1}
+        _url, :get_source_metadata, _opts, _ot, _addl -> {:error, @members_only_error, 1}
+      end)
+
+      source = source_fixture(%{series_directory: nil})
+
+      assert :ok = perform_job(SourceMetadataStorageWorker, %{id: source.id})
+      refute Repo.reload(source).series_directory
+    end
+
+    test "fails cleanly (no crash) for unavailable media when the setting is disabled" do
+      Settings.set(ignore_unavailable_media: false)
+
+      stub(YtDlpRunnerMock, :run, fn
+        _url, :get_source_details, _opts, _ot, _addl -> {:ok, source_details_return_fixture()}
+        _url, :get_source_metadata, _opts, _ot, _addl -> {:error, @members_only_error, 1}
+      end)
+
+      source = source_fixture()
+
+      assert {:error, :source_metadata_fetch_failed} = perform_job(SourceMetadataStorageWorker, %{id: source.id})
+    end
+
+    test "fails cleanly (no crash) for unrelated errors even when the setting is enabled" do
+      Settings.set(ignore_unavailable_media: true)
+
+      stub(YtDlpRunnerMock, :run, fn
+        _url, :get_source_details, _opts, _ot, _addl -> {:ok, source_details_return_fixture()}
+        _url, :get_source_metadata, _opts, _ot, _addl -> {:error, "Some unrelated error", 1}
+      end)
+
+      source = source_fixture()
+
+      assert {:error, :source_metadata_fetch_failed} = perform_job(SourceMetadataStorageWorker, %{id: source.id})
+    end
+  end
+
+  describe "perform/1 when yt-dlp returns an unparseable response" do
+    test "fails cleanly (no crash) when the source metadata response can't be decoded" do
+      stub(YtDlpRunnerMock, :run, fn
+        _url, :get_source_details, _opts, _ot, _addl -> {:ok, source_details_return_fixture()}
+        # An empty/truncated response - eg. after a yt-dlp behaviour change - fails to decode
+        _url, :get_source_metadata, _opts, _ot, _addl -> {:ok, ""}
+      end)
+
+      source = source_fixture()
+
+      assert {:error, :source_metadata_fetch_failed} = perform_job(SourceMetadataStorageWorker, %{id: source.id})
+    end
+
+    test "fails cleanly (no crash) when the source details response can't be decoded" do
+      stub(YtDlpRunnerMock, :run, fn
+        _url, :get_source_details, _opts, _ot, _addl -> {:ok, ""}
+        _url, :get_source_metadata, _opts, _ot, _addl -> {:ok, "{}"}
+      end)
+
+      source = source_fixture()
+
+      assert {:error, :source_metadata_fetch_failed} = perform_job(SourceMetadataStorageWorker, %{id: source.id})
+    end
+
+    test "completes (with no series directory) when the details response is valid JSON missing the filename" do
+      stub(YtDlpRunnerMock, :run, fn
+        _url, :get_source_details, _opts, _ot, _addl -> {:ok, "{}"}
+        _url, :get_source_metadata, _opts, _ot, _addl -> {:ok, "{}"}
+      end)
+
+      source = source_fixture(%{series_directory: nil})
+
+      assert :ok = perform_job(SourceMetadataStorageWorker, %{id: source.id})
+      refute Repo.reload(source).series_directory
     end
   end
 
@@ -309,6 +404,34 @@ defmodule Pinchflat.Metadata.SourceMetadataStorageWorkerTest do
       source = Repo.reload(source)
 
       assert source.series_directory
+    end
+
+    test "sets the series directory from a {{ series_root }} marker in the output template" do
+      media_profile =
+        media_profile_fixture(%{
+          output_path_template: "/{{ source_custom_name }}{{ series_root }}/Videos/{{ title }}.{{ ext }}"
+        })
+
+      stub(YtDlpRunnerMock, :run, fn
+        _url, :get_source_details, opts, _ot, _addl ->
+          # The output template handed to yt-dlp should carry the sentinel;
+          # emulate yt-dlp resolving the remaining variables into a filename
+          output = Keyword.fetch!(opts, :output)
+          assert String.contains?(output, MetadataFileHelpers.series_root_marker())
+          filename = output |> String.replace("%(title)S", "some title") |> String.replace("%(ext)S", "mp4")
+
+          {:ok, source_details_return_fixture(%{filename: filename})}
+
+        _url, :get_source_metadata, _opts, _ot, _addl ->
+          {:ok, "{}"}
+      end)
+
+      source = source_fixture(%{media_profile_id: media_profile.id, series_directory: nil})
+      perform_job(SourceMetadataStorageWorker, %{id: source.id})
+      source = Repo.reload(source)
+
+      expected_directory = Path.join(Application.get_env(:pinchflat, :media_directory), source.custom_name)
+      assert source.series_directory == expected_directory
     end
 
     test "does not set the series directory if it cannot be determined" do

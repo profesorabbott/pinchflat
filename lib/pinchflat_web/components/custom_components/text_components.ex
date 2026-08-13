@@ -157,10 +157,9 @@ defmodule PinchflatWeb.CustomComponents.TextComponents do
     {num, suffix} = NumberUtils.human_byte_size(assigns.byte_size, precision: 2)
 
     assigns =
-      Map.merge(assigns, %{
-        num: num,
-        suffix: suffix
-      })
+      assigns
+      |> assign(:num, num)
+      |> assign(:suffix, suffix)
 
     ~H"""
     <.localized_number number={@num} /> {@suffix}
@@ -215,8 +214,7 @@ defmodule PinchflatWeb.CustomComponents.TextComponents do
         <span class={[
           "border-t border-l border-form-strokedark absolute -z-10 h-2 w-2 rotate-45 rounded-sm bg-meta-4",
           @tooltip_arrow_class
-        ]}>
-        </span>
+        ]}></span>
         <div class="px-3">{@tooltip}</div>
       </div>
     </div>

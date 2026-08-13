@@ -166,15 +166,15 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilderTest do
       assert :write_thumbnail in res
     end
 
-    test "appends -thumb to the thumbnail name when download_thumbnail is true", %{media_item: media_item} do
+    test "matches the thumbnail name to the media name when download_thumbnail is true", %{media_item: media_item} do
       media_item = update_media_profile_attribute(media_item, %{download_thumbnail: true})
 
       assert {:ok, res} = DownloadOptionBuilder.build(media_item)
 
-      assert {:output, "thumbnail:/tmp/test/media/%(title)S-thumb.%(ext)s"} in res
+      assert {:output, "thumbnail:/tmp/test/media/%(title)S.%(ext)s"} in res
     end
 
-    test "appends -thumb to source's output path override, if present", %{media_item: media_item} do
+    test "matches the thumbnail name to the source's output path override, if present", %{media_item: media_item} do
       media_item = update_media_profile_attribute(media_item, %{download_thumbnail: true})
       {:ok, _} = Sources.update_source(media_item.source, %{output_path_template_override: "override.%(ext)s"})
 
@@ -185,7 +185,7 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilderTest do
 
       assert {:ok, res} = DownloadOptionBuilder.build(media_item)
 
-      assert {:output, "thumbnail:/tmp/test/media/override-thumb.%(ext)s"} in res
+      assert {:output, "thumbnail:/tmp/test/media/override.%(ext)s"} in res
     end
 
     test "converts thumbnail to jpg when download_thumbnail is true", %{media_item: media_item} do
@@ -437,6 +437,28 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilderTest do
       path = DownloadOptionBuilder.build_output_path_for(source)
 
       assert path == "/tmp/test/media/override.%(ext)s"
+    end
+
+    test "strips the series_root marker from the output path", %{media_item: media_item} do
+      media_item =
+        update_media_profile_attribute(media_item, %{
+          output_path_template: "{{ source_custom_name }}{{ series_root }}/Videos/{{ title }}.%(ext)s"
+        })
+
+      path = DownloadOptionBuilder.build_output_path_for(media_item)
+
+      assert path == "/tmp/test/media/my source/Videos/%(title)S.%(ext)s"
+    end
+
+    test "renders the series_root marker with the given override", %{media_item: media_item} do
+      media_item =
+        update_media_profile_attribute(media_item, %{
+          output_path_template: "{{ source_custom_name }}{{ series_root }}/Videos/{{ title }}.%(ext)s"
+        })
+
+      path = DownloadOptionBuilder.build_output_path_for(media_item, %{"series_root" => "__marker__"})
+
+      assert path == "/tmp/test/media/my source__marker__/Videos/%(title)S.%(ext)s"
     end
   end
 

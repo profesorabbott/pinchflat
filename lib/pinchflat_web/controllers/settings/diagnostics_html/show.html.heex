@@ -1,0 +1,241 @@
+<div class="mb-6 flex gap-3 flex-row items-center justify-between">
+  <div class="flex gap-3 items-center">
+    <h2 class="text-title-md2 font-bold text-white ml-4">
+      Diagnostics
+    </h2>
+  </div>
+  <div class="flex gap-4 items-center">
+    <.button color="bg-primary" rounding="rounded-lg" x-data="{ copied: false }" x-on:click={~s"
+        copyWithCallbacks(
+          `#{diagnostic_info_string()}`,
+          () => copied = true,
+          () => copied = false
+        )
+      "}>
+      Copy Diagnostic Info
+      <span x-show="copied" x-transition.duration.150ms><.icon name="hero-check" class="ml-2 h-4 w-4" /></span>
+    </.button>
+    <.link href={~p"/download_logs"}>
+      <.button color="bg-primary" rounding="rounded-lg">
+        Download Logs
+      </.button>
+    </.link>
+  </div>
+</div>
+
+<!-- System Stats -->
+<div class="rounded-sm border border-stroke bg-white px-5 py-5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5 mb-6">
+  <h3 class="text-lg font-semibold text-white mb-4">System Overview</h3>
+  <% stats = system_stats() %>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="bg-meta-4 rounded-lg p-4">
+      <p class="text-sm text-bodydark">Pending Downloads</p>
+      <p class="text-2xl font-bold text-white">{stats.total_pending_downloads}</p>
+    </div>
+    <div class="bg-meta-4 rounded-lg p-4">
+      <p class="text-sm text-bodydark">Downloaded Media</p>
+      <p class="text-2xl font-bold text-white">{stats.total_downloaded}</p>
+    </div>
+    <div class="bg-meta-4 rounded-lg p-4">
+      <p class="text-sm text-bodydark">Total Sources</p>
+      <p class="text-2xl font-bold text-white">{stats.total_sources}</p>
+    </div>
+    <div class="bg-meta-4 rounded-lg p-4">
+      <p class="text-sm text-bodydark">Database Size</p>
+      <p class="text-2xl font-bold text-white">{stats.database_size}</p>
+    </div>
+  </div>
+</div>
+
+<!-- Queue Health -->
+{live_render(@conn, Pinchflat.Settings.QueueHealthLive, id: "queue-health-live")}
+
+<!-- Stuck Jobs -->
+<% stuck = stuck_jobs() %>
+<%= if length(stuck) > 0 do %>
+  <div class="rounded-sm border border-stroke bg-white px-5 py-5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5 mb-6">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-lg font-semibold text-white">
+        <.icon name="hero-exclamation-triangle" class="h-5 w-5 text-yellow-500 mr-2" />
+        Long-Running Jobs ({length(stuck)})
+      </h3>
+    </div>
+    <p class="text-bodydark text-sm mb-4">
+      These jobs have been executing for more than 30 minutes. Orphaned jobs left behind by an
+      ungraceful shutdown are automatically recovered the next time Pinchflat restarts, so a job
+      here is usually just long-running (for example indexing a large channel or downloading a
+      long video). If one is genuinely hung — or it's holding up other work on a single-worker
+      setup — you can requeue it. That stops the current run and sends a fresh copy to the back
+      of the queue, so other jobs get to run first.
+    </p>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-strokedark">
+            <th class="text-left py-2 text-bodydark">ID</th>
+            <th class="text-left py-2 text-bodydark">Queue</th>
+            <th class="text-left py-2 text-bodydark">Worker</th>
+            <th class="text-left py-2 text-bodydark">Started At</th>
+            <th class="text-left py-2 text-bodydark">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <%= for job <- stuck do %>
+            <tr class="border-b border-strokedark/50">
+              <td class="py-2 text-white">#{job.id}</td>
+              <td class="py-2 text-white">{job.queue}</td>
+              <td class="py-2 text-white">{format_worker_name(job.worker)}</td>
+              <td class="py-2 text-white">{format_datetime(job.attempted_at)}</td>
+              <td class="py-2">
+                <.link
+                  href={~p"/diagnostics/requeue_job/#{job.id}"}
+                  method="post"
+                  class="text-primary hover:underline"
+                  data-confirm="Requeue this job? It stops the current run and moves to the back of the queue so other jobs can run first."
+                >
+                  Requeue
+                </.link>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% end %>
+
+<!-- Failed Jobs -->
+<% retryable = retryable_jobs() %>
+<% discarded = discarded_jobs() %>
+<div class="rounded-sm border border-stroke bg-white px-5 py-5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5">
+  <div class="flex justify-between items-center mb-4">
+    <h3 class="text-lg font-semibold text-white">Failed Jobs</h3>
+    <%= if length(retryable) > 0 do %>
+      <.link
+        href={~p"/diagnostics/reset_retryable_jobs"}
+        method="post"
+        data-confirm="This will reset all retryable jobs and clear their error history. They will be retried from scratch. Continue?"
+      >
+        <.button color="bg-red-600" rounding="rounded-lg" class="text-sm">
+          <.icon name="hero-arrow-path" class="h-4 w-4 mr-1" /> Reset All Retryable Jobs
+        </.button>
+      </.link>
+    <% end %>
+  </div>
+
+  <.tabbed_layout>
+    <:tab title={"Retryable (#{length(retryable)})"} id="retryable">
+      <%= if length(retryable) == 0 do %>
+        <p class="text-bodydark">No retryable jobs. Everything is running smoothly!</p>
+      <% else %>
+        <p class="text-bodydark text-sm mb-4">
+          These jobs have failed and are waiting to be retried automatically. You can reset them to retry immediately, or requeue them to run again after other queued jobs.
+        </p>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-strokedark">
+                <th class="text-left py-2 text-bodydark">ID</th>
+                <th class="text-left py-2 text-bodydark">Queue</th>
+                <th class="text-left py-2 text-bodydark">Worker</th>
+                <th class="text-left py-2 text-bodydark">Attempts</th>
+                <th class="text-left py-2 text-bodydark">Last Error</th>
+                <th class="text-left py-2 text-bodydark">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for job <- retryable do %>
+                <tr class="border-b border-strokedark/50">
+                  <td class="py-2 text-white">#{job.id}</td>
+                  <td class="py-2 text-white">{job.queue}</td>
+                  <td class="py-2 text-white">{format_worker_name(job.worker)}</td>
+                  <td class="py-2 text-white">{job.attempt}/{job.max_attempts}</td>
+                  <td class="py-2 text-red-400 max-w-xs truncate" title={extract_last_error(job.errors)}>
+                    {extract_last_error(job.errors)}
+                  </td>
+                  <td class="py-2">
+                    <.link
+                      href={~p"/diagnostics/reset_job/#{job.id}"}
+                      method="post"
+                      class="text-primary hover:underline mr-3"
+                    >
+                      Reset
+                    </.link>
+                    <.link
+                      href={~p"/diagnostics/requeue_job/#{job.id}"}
+                      method="post"
+                      class="text-primary hover:underline"
+                      data-confirm="Requeue this job? It moves to the back of the queue so other jobs can run first."
+                    >
+                      Requeue
+                    </.link>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% end %>
+    </:tab>
+
+    <:tab title={"Discarded (#{length(discarded)})"} id="discarded">
+      <%= if length(discarded) == 0 do %>
+        <p class="text-bodydark">No discarded jobs.</p>
+      <% else %>
+        <p class="text-bodydark text-sm mb-4">
+          These jobs failed and exhausted all of their retries, so they won't run again on their own. Reset one to queue it for another attempt.
+        </p>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-strokedark">
+                <th class="text-left py-2 text-bodydark">ID</th>
+                <th class="text-left py-2 text-bodydark">Queue</th>
+                <th class="text-left py-2 text-bodydark">Worker</th>
+                <th class="text-left py-2 text-bodydark">Details</th>
+                <th class="text-left py-2 text-bodydark">Attempts</th>
+                <th class="text-left py-2 text-bodydark">Discarded At</th>
+                <th class="text-left py-2 text-bodydark">Last Error</th>
+                <th class="text-left py-2 text-bodydark">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for job <- discarded do %>
+                <tr class="border-b border-strokedark/50">
+                  <td class="py-2 text-white">#{job.id}</td>
+                  <td class="py-2 text-white">{job.queue}</td>
+                  <td class="py-2 text-white">{format_worker_name(job.worker)}</td>
+                  <td class="py-2 max-w-xs truncate">
+                    <.job_details worker={job.worker} args={job.args} />
+                  </td>
+                  <td class="py-2 text-white">{job.attempt}/{job.max_attempts}</td>
+                  <td class="py-2 text-white">{format_datetime(job.discarded_at)}</td>
+                  <td class="py-2 text-red-400 max-w-xs truncate" title={extract_last_error(job.errors)}>
+                    {extract_last_error(job.errors)}
+                  </td>
+                  <td class="py-2">
+                    <.link
+                      href={~p"/diagnostics/reset_job/#{job.id}"}
+                      method="post"
+                      class="text-primary hover:underline mr-3"
+                    >
+                      Reset
+                    </.link>
+                    <.link
+                      href={~p"/diagnostics/delete_job/#{job.id}"}
+                      method="post"
+                      class="text-red-400 hover:underline"
+                      data-confirm="Permanently delete this job? This cannot be undone."
+                    >
+                      Delete
+                    </.link>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% end %>
+    </:tab>
+  </.tabbed_layout>
+</div>

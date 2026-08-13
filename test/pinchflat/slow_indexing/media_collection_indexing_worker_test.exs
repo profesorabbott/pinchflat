@@ -58,7 +58,7 @@ defmodule Pinchflat.SlowIndexing.MediaCollectionIndexingWorkerTest do
     end
 
     test "indexes the source if it should be indexed" do
-      expect(YtDlpRunnerMock, :run, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
+      expect(YtDlpRunnerMock, :run, 3, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
         {:ok, ""}
       end)
 
@@ -68,7 +68,7 @@ defmodule Pinchflat.SlowIndexing.MediaCollectionIndexingWorkerTest do
     end
 
     test "indexes the source no matter what if the source has never been indexed before" do
-      expect(YtDlpRunnerMock, :run, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
+      expect(YtDlpRunnerMock, :run, 3, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
         {:ok, ""}
       end)
 
@@ -78,7 +78,7 @@ defmodule Pinchflat.SlowIndexing.MediaCollectionIndexingWorkerTest do
     end
 
     test "indexes the source no matter what if the 'force' arg is passed" do
-      expect(YtDlpRunnerMock, :run, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
+      expect(YtDlpRunnerMock, :run, 3, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
         {:ok, ""}
       end)
 
@@ -88,7 +88,7 @@ defmodule Pinchflat.SlowIndexing.MediaCollectionIndexingWorkerTest do
     end
 
     test "doesn't use a download archive if the index has been forced" do
-      expect(YtDlpRunnerMock, :run, fn _url, :get_media_attributes_for_collection, opts, _ot, _addl_opts ->
+      expect(YtDlpRunnerMock, :run, 3, fn _url, :get_media_attributes_for_collection, opts, _ot, _addl_opts ->
         refute :break_on_existing in opts
         refute Keyword.has_key?(opts, :download_archive)
 
@@ -121,7 +121,7 @@ defmodule Pinchflat.SlowIndexing.MediaCollectionIndexingWorkerTest do
     end
 
     test "kicks off a download job for each pending media item" do
-      expect(YtDlpRunnerMock, :run, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
+      expect(YtDlpRunnerMock, :run, 3, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
         {:ok, source_attributes_return_fixture()}
       end)
 
@@ -132,7 +132,7 @@ defmodule Pinchflat.SlowIndexing.MediaCollectionIndexingWorkerTest do
     end
 
     test "starts a job for any pending media item even if it's from another run" do
-      expect(YtDlpRunnerMock, :run, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
+      expect(YtDlpRunnerMock, :run, 3, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
         {:ok, source_attributes_return_fixture()}
       end)
 
@@ -144,7 +144,7 @@ defmodule Pinchflat.SlowIndexing.MediaCollectionIndexingWorkerTest do
     end
 
     test "does not kick off a job for media items that could not be saved" do
-      expect(YtDlpRunnerMock, :run, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
+      expect(YtDlpRunnerMock, :run, 3, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
         {:ok, source_attributes_return_fixture()}
       end)
 
@@ -158,6 +158,25 @@ defmodule Pinchflat.SlowIndexing.MediaCollectionIndexingWorkerTest do
 
     test "reschedules the job based on the index frequency" do
       source = source_fixture(index_frequency_minutes: 10)
+      perform_job(MediaCollectionIndexingWorker, %{id: source.id})
+
+      assert_enqueued(
+        worker: MediaCollectionIndexingWorker,
+        args: %{"id" => source.id},
+        scheduled_at: now_plus(source.index_frequency_minutes, :minutes)
+      )
+    end
+
+    test "reschedules even though the current job is still executing" do
+      source = source_fixture(index_frequency_minutes: 10)
+
+      # The worker dedupes against the :incomplete states (which include :executing).
+      # Simulate the real Oban executor by leaving the current job in the :executing
+      # state while perform/1 runs - the reschedule must not see it as a duplicate of
+      # its own successor and silently skip rescheduling.
+      {:ok, job} = Oban.insert(MediaCollectionIndexingWorker.new(%{id: source.id}))
+      Repo.update!(Ecto.Changeset.change(job, state: "executing"))
+
       perform_job(MediaCollectionIndexingWorker, %{id: source.id})
 
       assert_enqueued(
@@ -208,7 +227,7 @@ defmodule Pinchflat.SlowIndexing.MediaCollectionIndexingWorkerTest do
     end
 
     test "creates the basic media_item records" do
-      expect(YtDlpRunnerMock, :run, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
+      expect(YtDlpRunnerMock, :run, 3, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
         {:ok, source_attributes_return_fixture()}
       end)
 
@@ -241,7 +260,7 @@ defmodule Pinchflat.SlowIndexing.MediaCollectionIndexingWorkerTest do
     test "sends a notification if new media was found" do
       source = source_fixture()
 
-      expect(YtDlpRunnerMock, :run, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
+      expect(YtDlpRunnerMock, :run, 3, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
         {:ok, source_attributes_return_fixture()}
       end)
 

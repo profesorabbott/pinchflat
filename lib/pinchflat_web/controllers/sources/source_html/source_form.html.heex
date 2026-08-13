@@ -59,7 +59,10 @@
         help="Indexing is the process of checking for media to download. For best results, set this to the longest delay you can tolerate for this source"
       />
 
-      <div phx-click={show_modal("upgrade-modal")}>
+      <div
+        data-show-upgrade-modal={show_modal("upgrade-modal")}
+        x-on:click="(!proEnabled && !onboarding) && window.liveSocket.execJS($el, $el.dataset.showUpgradeModal)"
+      >
         <.input
           field={f[:fast_index]}
           type="toggle"
@@ -167,9 +170,10 @@
       <section
         x-data={
           """
-          { 
+          {
             placeholders: JSON.parse('#{output_path_template_override_placeholders(@media_profiles)}'),
-            inputValue: null
+            inputValue: null,
+            get tplWarnings() { return this.inputValue ? window.validateOutputTemplate(this.inputValue) : [] }
           }
           """
         }
@@ -185,6 +189,15 @@
           x-bind:placeholder="placeholders[mediaProfileId]"
           x-model.fill="inputValue"
         />
+        <ul
+          x-cloak
+          x-show="tplWarnings.length"
+          class="mt-1 text-sm text-amber-500 list-disc list-inside"
+        >
+          <template x-for="warning in tplWarnings" x-bind:key="warning">
+            <li x-text="warning"></li>
+          </template>
+        </ul>
       </section>
     </section>
 

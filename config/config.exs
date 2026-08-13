@@ -32,7 +32,33 @@ config :pinchflat,
 
 config :pinchflat, Pinchflat.Repo,
   journal_mode: :wal,
-  pool_size: 5
+  # Explicit (matches exqlite's default): NORMAL is safe under WAL — only a
+  # transaction can be lost on OS/power loss, never corruption — and avoids a
+  # per-write fsync. Pinned here so a future driver-default change can't regress it.
+  synchronous: :normal,
+  # BEGIN IMMEDIATE for every transaction. The default DEFERRED mode starts as a
+  # read transaction and upgrades to a write on the first write statement — under
+  # WAL that upgrade fails instantly with SQLITE_BUSY (busy_timeout never runs)
+  # whenever another connection committed since the read snapshot was taken, which
+  # is constant under an active queue (Oban's stager does exactly this
+  # select-then-update shape every second). IMMEDIATE takes the write lock at
+  # BEGIN, so contending writers queue on busy_timeout instead of erroring.
+  default_transaction_mode: :immediate,
+  # Explicit (matches ecto_sqlite3's defaults — negative = KiB, so ~64 MB page
+  # cache per connection): keeps the reconcile working set off the disk (#110)
+  # and pins us against a future driver-default change.
+  cache_size: -64_000,
+  temp_store: :memory,
+  # Generous so slow writes on weak hardware (or a database VACUUM) surface as
+  # brief waits instead of "database is locked" errors
+  busy_timeout: 30_000,
+  # Must exceed busy_timeout: Ecto's default per-query timeout is 15s, which
+  # would kill a write while it's still legitimately queued on the busy handler
+  timeout: 45_000,
+  # Small pools starved the LiveView/other jobs while a reconcile held connections
+  # (#110). WAL lets extra readers run without blocking, so a larger pool is cheap.
+  # Overridable at runtime via DATABASE_POOL_SIZE.
+  pool_size: 10
 
 # Configures the endpoint
 config :pinchflat, PinchflatWeb.Endpoint,
@@ -42,14 +68,17 @@ config :pinchflat, PinchflatWeb.Endpoint,
   adapter: Phoenix.Endpoint.Cowboy2Adapter,
   render_errors: [
     formats: [html: PinchflatWeb.ErrorHTML, json: PinchflatWeb.ErrorJSON],
-    root_layout: {PinchflatWeb.Layouts, :root},
-    layout: {PinchflatWeb.Layouts, :app}
+    # Error pages use a dedicated standalone layout (no `layout:` — inner layout
+    # stays disabled). The app/root layouts need assigns (flash) and database
+    # access that the error-rendering conn doesn't have.
+    root_layout: {PinchflatWeb.Layouts, :error}
   ],
   pubsub_server: Pinchflat.PubSub,
   live_view: [signing_salt: "/t5878kO"]
 
 config :pinchflat, Oban,
   engine: Oban.Engines.Lite,
+  notifier: Oban.Notifiers.PG,
   repo: Pinchflat.Repo
 
 # Configures the mailer

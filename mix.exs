@@ -5,7 +5,7 @@ defmodule Pinchflat.MixProject do
     [
       app: :pinchflat,
       # x-release-please-start-version
-      version: "1.0.0",
+      version: "1.4.3",
       # x-release-please-end-version
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -23,6 +23,12 @@ defmodule Pinchflat.MixProject do
           PinchflatWeb.Layouts,
           Pinchflat.DataCase,
           Pinchflat.Release,
+          # Runtime wiring with no testable logic
+          Pinchflat.Application,
+          Pinchflat.PromEx,
+          PinchflatWeb.Telemetry,
+          # Test support (like DataCase above)
+          Pinchflat.TestingHelperMethods,
           ~r/Fixtures/,
           ~r/HTML$/
         ]
@@ -49,19 +55,19 @@ defmodule Pinchflat.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:phoenix, "~> 1.7.21"},
+      {:phoenix, "~> 1.8.0"},
       {:phoenix_ecto, "~> 4.4"},
       {:ecto, "~> 3.12.3"},
       {:ecto_sql, "~> 3.12"},
-      {:ecto_sqlite3, ">= 0.0.0"},
+      {:ecto_sqlite3, "~> 0.19.0"},
       {:ecto_sqlite3_extras, "~> 1.2.0"},
       {:phoenix_html, "~> 4.2"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
-      {:phoenix_live_view, "~> 1.0.0"},
-      {:floki, ">= 0.36.0", only: :test},
+      {:phoenix_live_view, "~> 1.2.0"},
+      {:lazy_html, "~> 0.1", only: :test},
       {:phoenix_live_dashboard, "~> 0.8.2"},
       {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
-      {:tailwind, "~> 0.2.0", runtime: Mix.env() == :dev},
+      {:tailwind, "~> 0.5.0", runtime: Mix.env() == :dev},
       {:swoosh, "~> 1.3"},
       {:finch, "~> 0.18"},
       {:telemetry_metrics, "~> 1.0"},
@@ -72,14 +78,13 @@ defmodule Pinchflat.MixProject do
       {:plug_cowboy, "~> 2.5"},
       {:oban, "~> 2.17"},
       {:nimble_parsec, "~> 1.4"},
-      # See: https://github.com/bitwalker/timex/issues/778
-      {:timex, git: "https://github.com/bitwalker/timex.git", ref: "cc649c7a586f1266b17d57aff3c6eb1a56116ca2"},
-      {:prom_ex, "~> 1.11.0"},
+      {:timex, "~> 3.7"},
+      {:prom_ex, "~> 1.11"},
       {:mox, "~> 1.0", only: :test},
       {:credo, "~> 1.7.7", only: [:dev, :test], runtime: false},
       {:credo_naming, "~> 2.1", only: [:dev, :test], runtime: false},
       {:ex_check, "~> 0.16.0", only: [:dev, :test], runtime: false},
-      {:faker, "~> 0.17", only: :test},
+      {:faker, "~> 0.19", only: :test},
       {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false}
     ]
   end
@@ -94,7 +99,7 @@ defmodule Pinchflat.MixProject do
     [
       check: "check --config=tooling/.check.exs",
       credo: "credo --config-file=tooling/.credo.exs",
-      setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
+      setup: ["deps.get", "cmd ./tooling/fetch-sqlean.sh", "ecto.setup", "assets.setup", "assets.build"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
@@ -103,11 +108,11 @@ defmodule Pinchflat.MixProject do
       "assets.deploy": ["tailwind default --minify", "esbuild default --minify", "phx.digest"],
       "ecto.migrate": [
         "ecto.migrate",
-        ~s(cmd [ -z "$MIX_ENV" ] && yarn run create-erd || echo "No ERD generated")
+        ~s(cmd sh -c '[ -z "$MIX_ENV" ] && yarn run create-erd || echo "No ERD generated"')
       ],
       "ecto.rollback": [
         "ecto.rollback",
-        ~s(cmd [ -z "$MIX_ENV" ] && yarn run create-erd || echo "No ERD generated")
+        ~s(cmd sh -c '[ -z "$MIX_ENV" ] && yarn run create-erd || echo "No ERD generated"')
       ],
       "version.bump": "cmd ./tooling/version_bump.sh"
     ]
