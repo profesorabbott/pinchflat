@@ -27,7 +27,7 @@ jobs:
     # workspace into the container, so no compose, no detached keepalive, and no
     # `exec -T` TTY workaround are needed.
     container:
-      image: ghcr.io/profesorabbott/pinchflat-ci-base:sha-4978640
+      image: ghcr.io/profesorabbott/pinchflat-ci-base:sha-6e4dddd
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
