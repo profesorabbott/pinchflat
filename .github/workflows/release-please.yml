@@ -6,7 +6,7 @@ on:
 
 env:
   # Pinned to a smoke-tested ci-base build. Bump via PR after a new ci-base.yml run.
-  CI_BASE_IMAGE: ghcr.io/profesorabbott/pinchflat-ci-base:sha-4978640
+  CI_BASE_IMAGE: ghcr.io/profesorabbott/pinchflat-ci-base:sha-6e4dddd
 
 jobs:
   test:
@@ -19,7 +19,7 @@ jobs:
     # the workspace into the container, so no compose, no detached keepalive, and
     # no `exec -T` TTY workaround are needed.
     container:
-      image: ghcr.io/profesorabbott/pinchflat-ci-base:sha-4978640
+      image: ghcr.io/profesorabbott/pinchflat-ci-base:sha-6e4dddd
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
