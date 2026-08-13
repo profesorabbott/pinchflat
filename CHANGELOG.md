@@ -1,5 +1,11 @@
 # Changelog
 
+## [2026.8.13](https://github.com/profesorabbott/pinchflat/compare/v1.4.3...v2026.8.13) (2026-08-13)
+
+### Chores
+
+* bump version to private repo
+
 ## [1.4.3](https://github.com/CommunityMaintained/pinchflat/compare/v1.4.2...v1.4.3) (2026-08-02)
 
 
