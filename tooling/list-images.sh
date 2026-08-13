@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ORG="${1:-CommunityMaintained}"
+ORG="${1:-profesorabbott}"
 IMAGE="${2:-pinchflat}"
 ORG_LOWER=$(echo "$ORG" | tr '[:upper:]' '[:lower:]')
 TOKEN=$(gh auth token)
