@@ -18,6 +18,14 @@ mix setup              # deps + DB create/migrate/seed + assets
 iex -S mix phx.server  # http://localhost:4008
 ```
 
+## Issues
+
+For the local environment, sqlean often does not load fast enough and requires running of the fetch-sqlean.sh tool program to ensure they are in the proper place for extension fucntions to run.
+
+```bash
+/tooling/fetch-sqlean.sh
+```
+
 ## Tests
 
 ```bash
