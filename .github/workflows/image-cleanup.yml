@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: snok/container-retention-policy@d3bdcf5ce9b05f685154e4a16c39233b245e3d53 # v3.1.0
         with:
-          account: "user"
+          account: user
           token: ${{ secrets.IMG_RETENTION }}
           image-names: pinchflat-dev
           image-tags: 'rc-* pr-*' # target any image that has a tag starting with the word test or dev
